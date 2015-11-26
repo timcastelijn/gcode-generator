@@ -16,15 +16,29 @@ sspindle = 0
 # save offset from the workpiece
 Z_OFFSET = 2 #[mm]
    
-
+def OpenFileName(title=None, filter=None, folder=None, filename=None, extension=None):
+    fd = Rhino.UI.OpenFileDialog()
+    if title: fd.Title = title
+    if filter: fd.Filter = filter
+    if folder: fd.InitialDirectory = folder
+    if filename: fd.FileName = filename
+    if extension: fd.DefaultExt = extension
+    if fd.ShowDialog(): return fd.FileName
+    
 # read a configfile in the specified directory
 def readConfig():
         
     #get the script file dir
-    dir = os.getcwd()
+    # dir = os.getcwd()
+    # f = open(dir + '/config.ini')
     
+    filename = OpenFileName("Save", "Toolpath Files (*.ini)|*.ini||", os.getcwd())
+
+    # retrun function if no filename was specified
+    if not filename: return
     
-    f = open(dir + '/config.ini')
+    f = open(filename)
+    
     lines = f.readlines()
     f.close()
     par ={}
@@ -33,7 +47,6 @@ def readConfig():
         par[name] = float(val)
     return par
     
-
 def SaveFileName(title=None, filter=None, folder=None, filename=None, extension=None):
     fd = Rhino.UI.SaveFileDialog()
     if title: fd.Title = title
@@ -172,6 +185,9 @@ if( __name__ == "__main__" ):
     
     par = readConfig()
     
-    selection = rs.GetObjects("Select Curves/polylines/arcs/circles", rs.filter.curve, True, True)
+    if not par: 
+        print "no config file selected"
+    else:    
     
-    writeG(selection, par)
+        selection = rs.GetObjects("Select Curves/polylines/arcs/circles", rs.filter.curve, True, True)
+        writeG(selection, par)
