@@ -8,10 +8,6 @@ import rhinoscriptsyntax as rs
 import math
 import os
 import Rhino
-    
-file = '' 
-sfeed = 0
-sspindle = 0
 
 # save offset from the workpiece
 Z_OFFSET = 2 #[mm]
@@ -87,8 +83,9 @@ def writeHeader(file, par):
     
     # write header
     file.write("G90\n") # absolute positioning
-    file.write("F"+str(sfeed)+"\n") # feed rate
-    file.write("S"+str(sspindle)+"\n") # spindle speed
+    file.write("G21\n") # use milimeters
+    file.write("F"+str(sfeed)+"\n") # initialize feed rate
+    file.write("S"+str(sspindle)+"\n") # initialize spindle speed
     file.write("M08\n") # coolant on     
      
 def writePolyline(curve):  
@@ -131,6 +128,8 @@ def writeCurve(curve):
 
 def writeG(selection, par):
 
+    global sfeed, efeed, sspindle, e_intensity, tolerance, a_tolerance
+    
     # get variables
     sfeed           = par['feedrate_cut']
     efeed           = par['feedrate_engrave']
@@ -166,7 +165,7 @@ def writeG(selection, par):
         #     writeArc(curve)
  
         else:
-            writeCurve()
+            writeCurve(curve)
         
         # return to offset at end of the curve
         writePlungeRetract(curve)
