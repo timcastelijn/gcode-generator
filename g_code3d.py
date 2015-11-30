@@ -10,7 +10,39 @@ import os
 import Rhino
 
 # save offset from the workpiece
+PRECISION = 4
+SPACING = ""
 Z_OFFSET = 2 #[mm]
+LINE_INDEX = True #type None for no
+line_index = 0
+
+def write(command, x=None, y=None, z=None, f=None, comment = None):
+
+    global line_index, LINE_INDEX, SPACING
+
+
+    line = ""
+    if LINE_INDEX:
+        line = line + "N%d0"%line_index + SPACING
+        line_index+=1
+        
+    line = line + command + SPACING
+    
+    if not x == None:
+        line = line + "X%0.4f"%x + SPACING
+    if not y == None:
+        line = line + "Y%0.4f"%y + SPACING
+    if not z == None:
+        line = line + "Z%0.4f"%z + SPACING
+    if not f == None:
+        line = line + "F%0.4f"%f + SPACING
+    if not comment == None:
+        line = line + ";" + comment
+    
+    file.write(line+"\n")
+    
+    
+
    
 def OpenFileName(title=None, filter=None, folder=None, filename=None, extension=None):
     fd = Rhino.UI.OpenFileDialog()
@@ -23,10 +55,6 @@ def OpenFileName(title=None, filter=None, folder=None, filename=None, extension=
     
 # read a configfile in the specified directory
 def readConfig():
-        
-    #get the script file dir
-    # dir = os.getcwd()
-    # f = open(dir + '/config.ini')
     
     filename = OpenFileName("Save", "Toolpath Files (*.ini)|*.ini||", os.getcwd())
 
@@ -55,43 +83,53 @@ def SaveFileName(title=None, filter=None, folder=None, filename=None, extension=
 def writeFastMoveToCurveStart(curve):
     # fast move to path start
     pt = rs.CurveStartPoint(curve)
-    file.write("G00 X%0.4f"%pt.X+" Y%0.4f"%pt.Y+" Z%0.4f"%Z_OFFSET+"\n")
-
+    write("G00", pt.X, pt.Y, 0 + Z_OFFSET )
+    
 def writePlungeToCurveStart(curve):
     # fast move to path start
     pt = rs.CurveStartPoint(curve)
-    file.write("G01 X%0.4f"%pt.X+" Y%0.4f"%pt.Y+" Z%0.4f"%pt.Z+"\n")        
+    write("G01", pt.X, pt.Y, pt.Z )
         
 def writePlungeRetract(curve):
-    # fast move to path start
+    # fast move to path end
     pt = rs.CurveEndPoint(curve)
-    file.write("G00 X%0.4f"%pt.X+" Y%0.4f"%pt.Y+" Z%0.4f"%Z_OFFSET+"\n")          
+    write("G00", pt.X, pt.Y, 0 + Z_OFFSET )
         
 def writeSpindleEnable():
-    file.write("M03\n") # spindle on clockwise
+    write("M03")
 
 def writeSpindleDisable():
-    file.write("M05\n") # spindle on clockwise
-
+    write("M05")
+    
 def writeReturnToHomingPos():
-    file.write("G00 X0.0000 Y0.0000 F1000\n")        
+    write("G00", z = 2, comment = "retract from workpiece" )    
+    write("G00", x=0 , y=0, comment = "return to 0" )
 
 def writeHeader(file, par):
 
-    sfeed           = par['feedrate_cut']
-    sspindle        = par['intensity_cut']
+    sfeed           = par['feedrate']
+    sspindle        = par['spindle_speed']
     
     # write header
-    file.write("G90\n") # absolute positioning
-    file.write("G21\n") # use milimeters
-    file.write("F"+str(sfeed)+"\n") # initialize feed rate
-    file.write("S"+str(sspindle)+"\n") # initialize spindle speed
-    file.write("M08\n") # coolant on     
+    write("G21", comment = "metric units")
+    write("G17", comment = "select xy-plane")
+    write("G90", comment = "absolute distance mode")
+    write("G40", comment = "cutter radius compensation off")
+    write("G49", comment = "no tool length offset")
+    write("G80", comment = "cancel current motor movement")
+    
+    write("T1M06", comment = "tool change to tool 1")
+    write("G43Z5.000H1", comment = "set tool length offset for tool 1 t0 5")
+    write("G94", comment = "units per minute")
+    
+    write("F" + str(sfeed), comment = "set feedrate" )
+    write("S" + str(sspindle), comment = "set spindle speed" ) 
+    write("M08")   
      
 def writePolyline(curve):  
     points = rs.CurvePoints(curve)
     for pt in points:
-        file.write("G01 X%0.4f"%pt.X+" Y%0.4f"%pt.Y+" Z%0.4f"%pt.Z+"\n")
+        write("G01", pt.X, pt.Y, pt.Z )
      
 def writeArc(curve):
             
@@ -121,25 +159,14 @@ def writeCurve(curve):
             
     # insert division points as line
     for pt in points:
-        file.write("G01 X%0.4f"%pt.X+" Y%0.4f"%pt.Y+" Z%0.4f"%pt.Z+"\n")
+        write("G01", pt.X, pt.Y, pt.Z )
     
     # remove objects after use
     rs.DeleteObjects(polyLine)
 
 def writeG(selection, par):
-
-    global sfeed, efeed, sspindle, e_intensity, tolerance, a_tolerance
     
-    # get variables
-    sfeed           = par['feedrate_cut']
-    efeed           = par['feedrate_engrave']
-    sspindle        = par['intensity_cut']
-    e_intensity     = par['intensity_engrave']
-    tolerance       = par['curve_tolerance']
-    a_tolerance     = par['curve_angle_tolerance']
-    
-    print("new")
-    
+    # get filename frm dialog
     filename = SaveFileName ("Save", "Toolpath Files (*.nc)|*.nc||")
         
     # retrun function if no filename was specified
@@ -183,7 +210,7 @@ def writeG(selection, par):
 if( __name__ == "__main__" ):
     
     par = readConfig()
-    
+        
     if not par: 
         print "no config file selected"
     else:    
